@@ -61,18 +61,7 @@ const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
 export async function fetchAllSynthData(): Promise<AllSynthData> {
   const upDown15min = await getUpDown15min();
   await delay(120);
-  const upDownHourly = await getUpDownHourly().catch(() => ({
-    ...upDown15min,
-    slug: "bitcoin-up-or-down-hourly-fallback",
-    start_price: 71489,
-    synth_probability_up: upDown15min.synth_probability_up,
-    polymarket_probability_up: 0.69,
-    best_bid_price: 0.63,
-    best_ask_price: 0.68,
-    best_bid_size: 500,
-    best_ask_size: 500,
-    event_end_time: new Date(Date.now() + 3600_000).toISOString(),
-  }));
+  const upDownHourly = await getUpDownHourly();
   await delay(120);
   const upDownDaily = await getUpDownDaily();
   await delay(120);

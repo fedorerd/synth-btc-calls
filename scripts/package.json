@@ -1,0 +1,18 @@
+{
+  "name": "synth-backtest",
+  "type": "module",
+  "scripts": {
+    "collect-synth": "tsx src/1-collect-synth.ts",
+    "collect-polymarket": "tsx src/2-collect-polymarket.ts",
+    "backtest": "tsx src/3-backtest.ts"
+  },
+  "dependencies": {
+    "commander": "^12.0.0",
+    "dotenv": "^17.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "tsx": "^4.7.0",
+    "typescript": "^5.4.0"
+  }
+}

@@ -1,0 +1,481 @@
+{
+  "scenario": {
+    "name": "The Surgeon",
+    "bankroll": 1000,
+    "riskTolerance": 0.25,
+    "minEdge": 0.08,
+    "maxKellyFraction": 0.1,
+    "useSensitivity": true,
+    "useUncertainty": true
+  },
+  "metrics": {
+    "totalTrades": 15,
+    "skippedTrades": 16,
+    "resolvedTrades": 15,
+    "wins": 11,
+    "losses": 4,
+    "hitRate": 0.7333333333333333,
+    "totalPnl": 519.4130417693485,
+    "finalBankroll": 1519.4130417693484,
+    "returnPct": 0.5194130417693484,
+    "maxDrawdownPct": 0.11001742024453996,
+    "avgEdge": 0.1300666666666667,
+    "avgBetSize": 90.44137539047475,
+    "profitFactor": 2.9165634026796985
+  },
+  "trades": [
+    {
+      "timestamp": 1773529681,
+      "datetime": "2026-03-14T23:08:01.857Z",
+      "direction": "UP",
+      "synthProb": 1,
+      "polymarketProb": 0.885,
+      "edge": 0.11499999999999999,
+      "entryPrice": 0.9,
+      "betAmount": 100,
+      "kellyFraction": 0.1,
+      "outcome": "UP",
+      "pnl": 11.111111111111107,
+      "bankrollAfter": 1011.1111111111111,
+      "slug": "bitcoin-up-or-down-march-14-7pm-et"
+    },
+    {
+      "timestamp": 1773530281,
+      "datetime": "2026-03-14T23:18:01.927Z",
+      "direction": "UP",
+      "synthProb": 0.321,
+      "polymarketProb": 0.235,
+      "edge": 0.08600000000000002,
+      "entryPrice": 0.2507950039905596,
+      "betAmount": 25.64894286913068,
+      "kellyFraction": 0.025367086354085286,
+      "outcome": "UP",
+      "pnl": 76.62160662752578,
+      "bankrollAfter": 1087.732717738637,
+      "slug": "btc-updown-15m-1773530100"
+    },
+    {
+      "timestamp": 1773531241,
+      "datetime": "2026-03-14T23:34:01.750Z",
+      "direction": "UP",
+      "synthProb": 0.857,
+      "polymarketProb": 0.715,
+      "edge": 0.14200000000000002,
+      "entryPrice": 0.7274093050601057,
+      "betAmount": 108.7732717738637,
+      "kellyFraction": 0.1,
+      "outcome": "UP",
+      "pnl": 40.76189503964824,
+      "bankrollAfter": 1128.494612778285,
+      "slug": "btc-updown-15m-1773531000"
+    },
+    {
+      "timestamp": 1773531962,
+      "datetime": "2026-03-14T23:46:02.048Z",
+      "direction": "UP",
+      "synthProb": 0.699,
+      "polymarketProb": 0.46499999999999997,
+      "edge": 0.23399999999999999,
+      "entryPrice": 0.47514575170506484,
+      "betAmount": 112.56482595481214,
+      "kellyFraction": 0.09974777431828796,
+      "outcome": "UP",
+      "pnl": 124.34106145104647,
+      "bankrollAfter": 1252.8356742293315,
+      "slug": "btc-updown-15m-1773531900"
+    },
+    {
+      "timestamp": 1773536521,
+      "datetime": "2026-03-15T01:02:01.813Z",
+      "direction": "UP",
+      "synthProb": 0.665,
+      "polymarketProb": 0.585,
+      "edge": 0.08000000000000007,
+      "entryPrice": 0.58,
+      "betAmount": 54.41577934806875,
+      "kellyFraction": 0.04343409153123137,
+      "outcome": "DOWN",
+      "pnl": -54.41577934806875,
+      "bankrollAfter": 1198.4198948812627,
+      "slug": "btc-updown-15m-1773536400"
+    },
+    {
+      "timestamp": 1773538441,
+      "datetime": "2026-03-15T01:34:01.762Z",
+      "direction": "UP",
+      "synthProb": 0.445,
+      "polymarketProb": 0.265,
+      "edge": 0.18,
+      "entryPrice": 0.27670632621121255,
+      "betAmount": 66.94067864414095,
+      "kellyFraction": 0.05585744940488768,
+      "outcome": "DOWN",
+      "pnl": -66.94067864414095,
+      "bankrollAfter": 1131.4792162371218,
+      "slug": "btc-updown-15m-1773538200"
+    },
+    {
+      "timestamp": 1773540061,
+      "datetime": "2026-03-15T02:01:01.762Z",
+      "direction": "UP",
+      "synthProb": 0.81,
+      "polymarketProb": 0.725,
+      "edge": 0.08500000000000008,
+      "entryPrice": 0.81,
+      "betAmount": 80.71473259929228,
+      "kellyFraction": 0.07133558570144964,
+      "outcome": "UP",
+      "pnl": 18.933085424525345,
+      "bankrollAfter": 1150.4123016616472,
+      "slug": "btc-updown-15m-1773540000"
+    },
+    {
+      "timestamp": 1773540961,
+      "datetime": "2026-03-15T02:16:01.813Z",
+      "direction": "UP",
+      "synthProb": 0.409,
+      "polymarketProb": 0.315,
+      "edge": 0.09399999999999997,
+      "entryPrice": 0.36103090891027306,
+      "betAmount": 35.41037630135568,
+      "kellyFraction": 0.03078059600910838,
+      "outcome": "DOWN",
+      "pnl": -35.41037630135568,
+      "bankrollAfter": 1115.0019253602916,
+      "slug": "btc-updown-15m-1773540900"
+    },
+    {
+      "timestamp": 1773542041,
+      "datetime": "2026-03-15T02:34:01.873Z",
+      "direction": "UP",
+      "synthProb": 0.297,
+      "polymarketProb": 0.20500000000000002,
+      "edge": 0.09199999999999997,
+      "entryPrice": 0.1622632518520215,
+      "betAmount": 29.27628881384981,
+      "kellyFraction": 0.026256715928440873,
+      "outcome": "UP",
+      "pnl": 151.14835126761963,
+      "bankrollAfter": 1266.1502766279111,
+      "slug": "btc-updown-15m-1773541800"
+    },
+    {
+      "timestamp": 1773543061,
+      "datetime": "2026-03-15T02:51:01.897Z",
+      "direction": "UP",
+      "synthProb": 0.967,
+      "polymarketProb": 0.685,
+      "edge": 0.2819999999999999,
+      "entryPrice": 0.71,
+      "betAmount": 126.61502766279112,
+      "kellyFraction": 0.1,
+      "outcome": "UP",
+      "pnl": 51.71599721437948,
+      "bankrollAfter": 1317.8662738422906,
+      "slug": "btc-updown-15m-1773542700"
+    },
+    {
+      "timestamp": 1773543781,
+      "datetime": "2026-03-15T03:03:01.880Z",
+      "direction": "UP",
+      "synthProb": 0.701,
+      "polymarketProb": 0.605,
+      "edge": 0.09599999999999997,
+      "entryPrice": 0.56,
+      "betAmount": 74.30915330368148,
+      "kellyFraction": 0.05638595871114468,
+      "outcome": "UP",
+      "pnl": 58.38576331003544,
+      "bankrollAfter": 1376.252037152326,
+      "slug": "btc-updown-15m-1773543600"
+    },
+    {
+      "timestamp": 1773544621,
+      "datetime": "2026-03-15T03:17:01.877Z",
+      "direction": "DOWN",
+      "synthProb": 0.219,
+      "polymarketProb": 0.335,
+      "edge": 0.11600000000000002,
+      "entryPrice": 0.68,
+      "betAmount": 137.6252037152326,
+      "kellyFraction": 0.1,
+      "outcome": "DOWN",
+      "pnl": 64.76480174834474,
+      "bankrollAfter": 1441.0168389006708,
+      "slug": "btc-updown-15m-1773544500"
+    },
+    {
+      "timestamp": 1773545522,
+      "datetime": "2026-03-15T03:32:02.022Z",
+      "direction": "DOWN",
+      "synthProb": 0.289,
+      "polymarketProb": 0.395,
+      "edge": 0.10600000000000004,
+      "entryPrice": 0.52,
+      "betAmount": 144.10168389006708,
+      "kellyFraction": 0.1,
+      "outcome": "DOWN",
+      "pnl": 133.01693897544652,
+      "bankrollAfter": 1574.0337778761173,
+      "slug": "btc-updown-15m-1773545400"
+    },
+    {
+      "timestamp": 1773548341,
+      "datetime": "2026-03-15T04:19:01.834Z",
+      "direction": "UP",
+      "synthProb": 0.717,
+      "polymarketProb": 0.585,
+      "edge": 0.132,
+      "entryPrice": 0.5657526167477557,
+      "betAmount": 114.24587577024798,
+      "kellyFraction": 0.0725815909264684,
+      "outcome": "DOWN",
+      "pnl": -114.24587577024798,
+      "bankrollAfter": 1459.7879021058693,
+      "slug": "btc-updown-15m-1773548100"
+    },
+    {
+      "timestamp": 1773550081,
+      "datetime": "2026-03-15T04:48:01.805Z",
+      "direction": "DOWN",
+      "synthProb": 0.154,
+      "polymarketProb": 0.265,
+      "edge": 0.11100000000000002,
+      "entryPrice": 0.71,
+      "betAmount": 145.97879021058694,
+      "kellyFraction": 0.1,
+      "outcome": "DOWN",
+      "pnl": 59.62513966347918,
+      "bankrollAfter": 1519.4130417693484,
+      "slug": "btc-updown-15m-1773549900"
+    }
+  ],
+  "skipped": [
+    {
+      "timestamp": 1773529681,
+      "datetime": "2026-03-14T23:08:01.857Z",
+      "slug": "btc-updown-15m-1773529200",
+      "timeframe": "15min",
+      "edge": 0.010499999999999954,
+      "synthProb": 1,
+      "polyProb": 0.9895,
+      "reason": "edge 1.0% < min 8%"
+    },
+    {
+      "timestamp": 1773533041,
+      "datetime": "2026-03-15T00:04:01.763Z",
+      "slug": "btc-updown-15m-1773532800",
+      "timeframe": "15min",
+      "edge": 0.010000000000000009,
+      "synthProb": 0.125,
+      "polyProb": 0.11499999999999999,
+      "reason": "edge 1.0% < min 8%"
+    },
+    {
+      "timestamp": 1773533041,
+      "datetime": "2026-03-15T00:04:01.763Z",
+      "slug": "bitcoin-up-or-down-march-14-8pm-et",
+      "timeframe": "1h",
+      "edge": 0.02999999999999997,
+      "synthProb": 0.265,
+      "polyProb": 0.295,
+      "reason": "edge 3.0% < min 8%"
+    },
+    {
+      "timestamp": 1773534062,
+      "datetime": "2026-03-15T00:21:02.083Z",
+      "slug": "btc-updown-15m-1773533700",
+      "timeframe": "15min",
+      "edge": 0.038000000000000034,
+      "synthProb": 0.333,
+      "polyProb": 0.295,
+      "reason": "edge 3.8% < min 8%"
+    },
+    {
+      "timestamp": 1773534661,
+      "datetime": "2026-03-15T00:31:01.721Z",
+      "slug": "btc-updown-15m-1773534600",
+      "timeframe": "15min",
+      "edge": 0.061000000000000054,
+      "synthProb": 0.656,
+      "polyProb": 0.595,
+      "reason": "edge 6.1% < min 8%"
+    },
+    {
+      "timestamp": 1773535861,
+      "datetime": "2026-03-15T00:51:01.756Z",
+      "slug": "btc-updown-15m-1773535500",
+      "timeframe": "15min",
+      "edge": 0.031,
+      "synthProb": 0.164,
+      "polyProb": 0.195,
+      "reason": "edge 3.1% < min 8%"
+    },
+    {
+      "timestamp": 1773536521,
+      "datetime": "2026-03-15T01:02:01.813Z",
+      "slug": "bitcoin-up-or-down-march-14-9pm-et",
+      "timeframe": "1h",
+      "edge": 0.03299999999999992,
+      "synthProb": 0.588,
+      "polyProb": 0.555,
+      "reason": "edge 3.3% < min 8%"
+    },
+    {
+      "timestamp": 1773537421,
+      "datetime": "2026-03-15T01:17:01.855Z",
+      "slug": "btc-updown-15m-1773537300",
+      "timeframe": "15min",
+      "edge": 0.027000000000000024,
+      "synthProb": 0.608,
+      "polyProb": 0.635,
+      "reason": "edge 2.7% < min 8%"
+    },
+    {
+      "timestamp": 1773539461,
+      "datetime": "2026-03-15T01:51:01.800Z",
+      "slug": "btc-updown-15m-1773539100",
+      "timeframe": "15min",
+      "edge": 0.0129999999999999,
+      "synthProb": 0.812,
+      "polyProb": 0.825,
+      "reason": "edge 1.3% < min 8%"
+    },
+    {
+      "timestamp": 1773540061,
+      "datetime": "2026-03-15T02:01:01.762Z",
+      "slug": "bitcoin-up-or-down-march-14-10pm-et",
+      "timeframe": "1h",
+      "edge": 0.02200000000000002,
+      "synthProb": 0.647,
+      "polyProb": 0.625,
+      "reason": "edge 2.2% < min 8%"
+    },
+    {
+      "timestamp": 1773543781,
+      "datetime": "2026-03-15T03:03:01.880Z",
+      "slug": "bitcoin-up-or-down-march-14-11pm-et",
+      "timeframe": "1h",
+      "edge": 0.06799999999999995,
+      "synthProb": 0.613,
+      "polyProb": 0.545,
+      "reason": "edge 6.8% < min 8%"
+    },
+    {
+      "timestamp": 1773546361,
+      "datetime": "2026-03-15T03:46:01.863Z",
+      "slug": "btc-updown-15m-1773546300",
+      "timeframe": "15min",
+      "edge": 0.069,
+      "synthProb": 0.404,
+      "polyProb": 0.335,
+      "reason": "edge 6.9% < min 8%"
+    },
+    {
+      "timestamp": 1773547381,
+      "datetime": "2026-03-15T04:03:01.774Z",
+      "slug": "btc-updown-15m-1773547200",
+      "timeframe": "15min",
+      "edge": 0.04500000000000004,
+      "synthProb": 0.56,
+      "polyProb": 0.515,
+      "reason": "edge 4.5% < min 8%"
+    },
+    {
+      "timestamp": 1773547381,
+      "datetime": "2026-03-15T04:03:01.774Z",
+      "slug": "bitcoin-up-or-down-march-15-12am-et",
+      "timeframe": "1h",
+      "edge": 0.041000000000000036,
+      "synthProb": 0.536,
+      "polyProb": 0.495,
+      "reason": "edge 4.1% < min 8%"
+    },
+    {
+      "timestamp": 1773549121,
+      "datetime": "2026-03-15T04:32:01.824Z",
+      "slug": "btc-updown-15m-1773549000",
+      "timeframe": "15min",
+      "edge": 0.04300000000000004,
+      "synthProb": 0.458,
+      "polyProb": 0.415,
+      "reason": "edge 4.3% < min 8%"
+    },
+    {
+      "timestamp": 1773550861,
+      "datetime": "2026-03-15T05:01:01.854Z",
+      "slug": "btc-updown-15m-1773550800",
+      "timeframe": "15min",
+      "edge": 0.065,
+      "synthProb": 0.3,
+      "polyProb": 0.365,
+      "reason": "edge 6.5% < min 8%"
+    }
+  ],
+  "equityCurve": [
+    {
+      "timestamp": 1773529406,
+      "bankroll": 1000
+    },
+    {
+      "timestamp": 1773529681,
+      "bankroll": 1011.1111111111111
+    },
+    {
+      "timestamp": 1773530281,
+      "bankroll": 1087.732717738637
+    },
+    {
+      "timestamp": 1773531241,
+      "bankroll": 1128.494612778285
+    },
+    {
+      "timestamp": 1773531962,
+      "bankroll": 1252.8356742293315
+    },
+    {
+      "timestamp": 1773536521,
+      "bankroll": 1198.4198948812627
+    },
+    {
+      "timestamp": 1773538441,
+      "bankroll": 1131.4792162371218
+    },
+    {
+      "timestamp": 1773540061,
+      "bankroll": 1150.4123016616472
+    },
+    {
+      "timestamp": 1773540961,
+      "bankroll": 1115.0019253602916
+    },
+    {
+      "timestamp": 1773542041,
+      "bankroll": 1266.1502766279111
+    },
+    {
+      "timestamp": 1773543061,
+      "bankroll": 1317.8662738422906
+    },
+    {
+      "timestamp": 1773543781,
+      "bankroll": 1376.252037152326
+    },
+    {
+      "timestamp": 1773544621,
+      "bankroll": 1441.0168389006708
+    },
+    {
+      "timestamp": 1773545522,
+      "bankroll": 1574.0337778761173
+    },
+    {
+      "timestamp": 1773548341,
+      "bankroll": 1459.7879021058693
+    },
+    {
+      "timestamp": 1773550081,
+      "bankroll": 1519.4130417693484
+    }
+  ]
+}

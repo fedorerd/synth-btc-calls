@@ -189,7 +189,7 @@ export interface UserSettings {
 }
 
 export const DEFAULT_SETTINGS: UserSettings = {
-  bankroll: 800,
+  bankroll: 0,
   riskTolerance: 0.5,
   minEdgeThreshold: 0.03,
   maxKellyFraction: 0.15,

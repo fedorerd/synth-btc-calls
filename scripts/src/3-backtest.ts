@@ -346,12 +346,13 @@ function computeKelly(
   return Math.max(0, Math.min(adjusted * scenario.riskTolerance, scenario.maxKellyFraction));
 }
 
-async function loadSynthSnapshots(dir: string): Promise<InsightSnapshot[]> {
+async function loadSynthSnapshots(dir: string, asset?: string): Promise<InsightSnapshot[]> {
   const files = await readdir(dir);
   const all: InsightSnapshot[] = [];
 
   for (const file of files) {
     if (!file.endsWith(".json")) continue;
+    if (asset && !file.toLowerCase().startsWith(asset.toLowerCase())) continue;
     const content = await readFile(`${dir}/${file}`, "utf-8");
     const snapshots: InsightSnapshot[] = JSON.parse(content);
     all.push(...snapshots);
@@ -465,10 +466,99 @@ function getEntryPrice(
   return totalCost / totalShares;
 }
 
+interface Candle {
+  time: number;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+}
+
+interface RegimeInfo {
+  efficiency: number;
+  atrPct: number;
+}
+
+async function loadCandles(dir: string, asset?: string): Promise<Candle[]> {
+  const assetDir = asset ? `${dir}/${asset.toLowerCase()}` : dir;
+  try {
+    const files = await readdir(assetDir);
+    const all: Candle[] = [];
+    for (const file of files) {
+      if (!file.endsWith(".json")) continue;
+      const content = await readFile(`${assetDir}/${file}`, "utf-8");
+      const candles: Candle[] = JSON.parse(content);
+      all.push(...candles);
+    }
+    // Deduplicate by time
+    const seen = new Set<number>();
+    const deduped = all.filter(c => {
+      if (seen.has(c.time)) return false;
+      seen.add(c.time);
+      return true;
+    });
+    return deduped.sort((a, b) => a.time - b.time);
+  } catch {
+    return [];
+  }
+}
+
+function getRegime(candles: Candle[], ts: number, lookbackMin: number): RegimeInfo | null {
+  if (candles.length === 0) return null;
+
+  // Binary search for start/end indices
+  const fromTs = ts - lookbackMin * 60;
+  let lo = 0, hi = candles.length - 1;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (candles[mid].time < fromTs) lo = mid + 1;
+    else hi = mid;
+  }
+  const startIdx = lo;
+
+  lo = startIdx; hi = candles.length - 1;
+  while (lo < hi) {
+    const mid = (lo + hi + 1) >> 1;
+    if (candles[mid].time <= ts) lo = mid;
+    else hi = mid - 1;
+  }
+  const endIdx = lo;
+
+  if (endIdx - startIdx < 4) return null;
+
+  const slice = candles.slice(startIdx, endIdx + 1);
+
+  // Efficiency ratio
+  const netMove = Math.abs(slice[slice.length - 1].close - slice[0].open);
+  let totalPath = 0;
+  for (const c of slice) totalPath += Math.abs(c.close - c.open);
+  const efficiency = totalPath > 0 ? netMove / totalPath : 0;
+
+  // ATR %
+  let atrSum = 0;
+  for (const c of slice) atrSum += c.high - c.low;
+  const atr = atrSum / slice.length;
+  const atrPct = (atr / slice[slice.length - 1].close) * 100;
+
+  return { efficiency, atrPct };
+}
+
 function runScenario(
   scenario: Scenario,
   snapshots: InsightSnapshot[],
   markets: PolymarketSnapshot[],
+  useConviction: boolean = true,
+  fixedBankroll: boolean = false,
+  confirmCount: number = 1,
+  minConviction: number = 0.5,
+  minCone: number = 0,
+  maxEntry: number = 1,
+  candles: Candle[] = [],
+  effMin: number = 0,
+  effMax: number = 1,
+  effLookback: number = 15,
+  atrMin: number = 0,
+  atrMax: number = 100,
 ): ScenarioResult {
   let bankroll = scenario.bankroll;
   const trades: Trade[] = [];
@@ -477,21 +567,12 @@ function runScenario(
     { timestamp: snapshots[0]?.timestamp ?? 0, bankroll },
   ];
 
-  const seed = scenario.name.split("").reduce((h, c) => ((h << 5) - h + c.charCodeAt(0)) | 0, 0);
-  let rng = Math.abs(seed) || 1;
-  const nextRng = () => { rng = (rng * 1664525 + 1013904223) & 0x7fffffff; return rng / 0x7fffffff; };
-
-  const firstTs = snapshots[0].timestamp;
-  const lastTs = snapshots[snapshots.length - 1].timestamp;
-  const betTimes: number[] = [];
-  const avgIntervalSec = 300;
-  let t = firstTs + Math.floor(nextRng() * avgIntervalSec);
-  while (t <= lastTs) {
-    betTimes.push(t);
-    t += Math.floor(avgIntervalSec * 0.6 + nextRng() * avgIntervalSec * 0.8);
-  }
+  // Use every snapshot as a potential bet time (like the bot checking every minute)
+  const betTimes = snapshots.map(s => s.timestamp);
 
   const bettedSlugs = new Set<string>();
+  // Confirmation tracking: slug → { direction, count }
+  const confirmTracker = new Map<string, { dir: "UP" | "DOWN"; count: number }>();
 
   for (const betTime of betTimes) {
     if (bankroll <= 1) break;
@@ -505,108 +586,227 @@ function runScenario(
     if (!bestSnap || bestDiff > 120) continue;
     if (!bestSnap.upDown15min || !bestSnap.upDown1h || !bestSnap.upDown24h) continue;
 
-    const candidates: { ud: UpDownData; label: string }[] = [];
-    if (bestSnap.upDown15min.slug) candidates.push({ ud: bestSnap.upDown15min, label: "15min" });
-    if (bestSnap.upDown1h.slug) candidates.push({ ud: bestSnap.upDown1h, label: "1h" });
+    // Only trade 15min markets
+    const ud = bestSnap.upDown15min;
+    if (!ud.slug || !ud.eventEndTime) continue;
+    // Only trade markets that haven't ended yet (slug timestamp = start, market lasts 900s)
+    const slugParts = ud.slug.split("-");
+    const slugTs = Number(slugParts[slugParts.length - 1]);
+    if (slugTs > 0 && bestSnap.timestamp >= slugTs + 900) continue;
+    if (bettedSlugs.has(ud.slug)) continue;
+    if (bankroll <= 1) break;
 
-    for (const { ud, label } of candidates) {
-      if (bankroll <= 1) break;
-      if (!ud.eventEndTime) continue;
-      if (bettedSlugs.has(ud.slug)) continue;
-      bettedSlugs.add(ud.slug);
+    const synthProb = ud.synthProbUp;
+    const synthProbDown = 1 - synthProb;
 
-      const synthProb = ud.synthProbUp;
-      const polyProb = ud.polymarketProbUp;
-      const edge = Math.abs(synthProb - polyProb);
-      const direction: "UP" | "DOWN" = synthProb > polyProb ? "UP" : "DOWN";
+    // --- Term structure (matches bot logic) ---
+    const pUp15min = synthProb;
+    const pUp1h = bestSnap.upDown1h!.synthProbUp;
+    const pUp24h = bestSnap.upDown24h!.synthProbUp;
 
-      const skipBase = { timestamp: bestSnap.timestamp, datetime: bestSnap.datetime, slug: ud.slug, timeframe: label, edge, synthProb, polyProb };
+    const slope = pUp24h - pUp15min;
+    const curvature = pUp1h - (pUp15min + pUp24h) / 2;
 
-      if (edge < scenario.minEdge) {
-        skipped.push({ ...skipBase, reason: `edge ${(edge * 100).toFixed(1)}% < min ${(scenario.minEdge * 100).toFixed(0)}%` });
+    const SLOPE_THRESHOLD = 0.10;
+    const CURVATURE_THRESHOLD = 0.10;
+    const steepBull = slope > SLOPE_THRESHOLD;
+    const steepBear = slope < -SLOPE_THRESHOLD;
+    const highCurve = curvature > CURVATURE_THRESHOLD;
+    const lowCurve = curvature < -CURVATURE_THRESHOLD;
+    let shape: string;
+    if (steepBull && highCurve) shape = "accelerating_bull";
+    else if (steepBear && lowCurve) shape = "accelerating_bear";
+    else if (steepBull) shape = "steep_bullish";
+    else if (steepBear) shape = "steep_bearish";
+    else if (highCurve) shape = "humped";
+    else if (lowCurve) shape = "inverted";
+    else shape = "flat";
+
+    const consistencyScore = Math.max(0, 1 - Math.abs(pUp15min - pUp1h));
+
+    const skipBase = { timestamp: bestSnap.timestamp, datetime: bestSnap.datetime, slug: ud.slug, timeframe: "15min", edge: 0, synthProb, polyProb: ud.polymarketProbUp };
+
+    // --- Flat term structure filter (matches bot) ---
+    if (shape === "flat" && consistencyScore < 0.6) {
+      skipped.push({ ...skipBase, reason: `flat term structure + low consistency (${(consistencyScore * 100).toFixed(0)}%)` });
+      continue;
+    }
+
+    // --- Find market orderbook ---
+    const market = findClosestMarket(ud.slug, ud.eventEndTime, markets);
+    if (!market?.orderbook) {
+      skipped.push({ ...skipBase, reason: "no orderbook data available" });
+      continue;
+    }
+
+    // --- Get entry prices for BOTH sides from orderbook ---
+    const upEntryPrice = getEntryPrice("UP", market, bestSnap.timestamp, 1); // probe with $1 to get best ask
+    const downEntryPrice = getEntryPrice("DOWN", market, bestSnap.timestamp, 1);
+
+    // --- Evaluate both sides independently (matches bot) ---
+    const upEdge = upEntryPrice != null && upEntryPrice > 0 ? synthProb - upEntryPrice : -1;
+    const downEdge = downEntryPrice != null && downEntryPrice > 0 ? synthProbDown - downEntryPrice : -1;
+
+    interface SideCandidate { dir: "UP" | "DOWN"; edge: number; conviction: number; entryProbe: number }
+    const sideCandidates: SideCandidate[] = [];
+
+    if ((!useConviction || synthProb >= minConviction) && upEdge >= scenario.minEdge && upEntryPrice != null && upEntryPrice > 0.01 && upEntryPrice < 0.99) {
+      sideCandidates.push({ dir: "UP", edge: upEdge, conviction: synthProb, entryProbe: upEntryPrice });
+    }
+    if ((!useConviction || synthProbDown >= minConviction) && downEdge >= scenario.minEdge && downEntryPrice != null && downEntryPrice > 0.01 && downEntryPrice < 0.99) {
+      sideCandidates.push({ dir: "DOWN", edge: downEdge, conviction: synthProbDown, entryProbe: downEntryPrice });
+    }
+
+    if (sideCandidates.length === 0) {
+      const bestEdge = Math.max(upEdge, downEdge);
+      confirmTracker.delete(ud.slug); // reset confirmation if no edge
+      skipped.push({ ...skipBase, edge: Math.abs(synthProb - ud.polymarketProbUp), reason: `no viable side (UP: conv=${(synthProb*100).toFixed(0)}% edge=${(upEdge*100).toFixed(1)}% | DOWN: conv=${(synthProbDown*100).toFixed(0)}% edge=${(downEdge*100).toFixed(1)}%)` });
+      continue;
+    }
+
+    // Pick side with higher edge
+    const pick = sideCandidates.sort((a, b) => b.edge - a.edge)[0];
+    const direction = pick.dir;
+    const liveEdge = pick.edge;
+
+    // Adaptive confirmation: extreme conviction early = likely wick, needs confirmation
+    // Medium conviction = expected early signal, can trade sooner
+    const requiredConfirms = confirmCount <= 1 ? 1
+      : pick.conviction >= 0.8 ? 3    // extreme: likely wick noise, wait
+      : pick.conviction >= 0.65 ? 2   // high: confirm once
+      : 1;                            // moderate (50-65%): expected signal, trade now
+
+    if (requiredConfirms > 1) {
+      const tracker = confirmTracker.get(ud.slug);
+      if (!tracker || tracker.dir !== direction) {
+        confirmTracker.set(ud.slug, { dir: direction, count: 1 });
+        skipped.push({ ...skipBase, edge: liveEdge, reason: `confirming ${direction} (1/${requiredConfirms}, conv=${(pick.conviction*100).toFixed(0)}%)` });
         continue;
       }
-
-      const market = findClosestMarket(ud.slug, ud.eventEndTime, markets);
-      if (!market?.orderbook) {
-        skipped.push({ ...skipBase, reason: "no orderbook data available" });
+      tracker.count++;
+      if (tracker.count < requiredConfirms) {
+        skipped.push({ ...skipBase, edge: liveEdge, reason: `confirming ${direction} (${tracker.count}/${requiredConfirms}, conv=${(pick.conviction*100).toFixed(0)}%)` });
         continue;
       }
+    }
 
-      const { prices: cdfPrices, cdfValues } = reconstructCDF(bestSnap.lpProbabilities ?? undefined, bestSnap.percentiles ?? undefined);
-      const referencePrice = ud.startPrice || bestSnap.currentPrice;
+    bettedSlugs.add(ud.slug);
 
-      let p05 = 0, p50 = 0, p95 = 0;
-      if (bestSnap.percentiles) {
-        p05 = Number(bestSnap.percentiles["0.05"] ?? 0);
-        p50 = Number(bestSnap.percentiles["0.5"] ?? 0);
-        p95 = Number(bestSnap.percentiles["0.95"] ?? 0);
-      }
-      const coneWidthPct = p95 > 0 && bestSnap.currentPrice > 0
-        ? (p95 - p05) / bestSnap.currentPrice
-        : 0;
-      const pdfAtRef = cdfPrices.length >= 2
-        ? pdfAtPrice(cdfPrices, cdfValues, referencePrice)
-        : 0;
+    // --- Distribution + Kelly (matches bot) ---
+    const { prices: cdfPrices, cdfValues } = reconstructCDF(bestSnap.lpProbabilities ?? undefined, bestSnap.percentiles ?? undefined);
+    const referencePrice = ud.startPrice || bestSnap.currentPrice;
 
-      const kellyFraction = computeKelly(
-        synthProb,
-        direction === "UP" ? polyProb : 1 - polyProb,
-        direction,
-        scenario,
-        coneWidthPct,
-        pdfAtRef,
-        p05,
-        p50,
-        p95,
-      );
-      if (kellyFraction <= 0) {
-        skipped.push({ ...skipBase, reason: `kelly fraction <= 0 (${kellyFraction.toFixed(4)})` });
-        continue;
-      }
+    let p05 = 0, p50 = 0, p95 = 0;
+    if (bestSnap.percentiles) {
+      p05 = Number(bestSnap.percentiles["0.05"] ?? 0);
+      p50 = Number(bestSnap.percentiles["0.5"] ?? 0);
+      p95 = Number(bestSnap.percentiles["0.95"] ?? 0);
+    }
+    const coneWidthPct = p95 > 0 && bestSnap.currentPrice > 0
+      ? (p95 - p05) / bestSnap.currentPrice
+      : 0;
 
-      const betAmount = scenario.fixedBetAmount
-        ? Math.min(scenario.fixedBetAmount, bankroll)
-        : Math.min(kellyFraction * bankroll, bankroll * 0.5);
-      if (betAmount < 1) continue;
+    if (minCone > 0 && coneWidthPct < minCone) {
+      skipped.push({ ...skipBase, edge: liveEdge, reason: `cone ${(coneWidthPct*100).toFixed(2)}% < min ${(minCone*100).toFixed(1)}%` });
+      continue;
+    }
 
-      const entryPrice = getEntryPrice(direction, market, bestSnap.timestamp, betAmount);
-      if (entryPrice === null || entryPrice <= 0 || entryPrice >= 1) {
-        skipped.push({ ...skipBase, reason: `invalid entry price: ${entryPrice}` });
-        continue;
-      }
-
-      let outcome: "UP" | "DOWN";
-      if (market?.outcome) {
-        outcome = market.outcome;
-      } else {
-        const eventEndTs = new Date(ud.eventEndTime).getTime() / 1000;
-        const laterSnap = snapshots.find(s => s.timestamp > eventEndTs);
-        if (laterSnap) {
-          outcome = laterSnap.currentPrice > ud.startPrice ? "UP" : "DOWN";
-        } else {
-          outcome = snapshots[snapshots.length - 1].currentPrice > ud.startPrice ? "UP" : "DOWN";
+    // --- Regime filter (candlestick-based) ---
+    if (candles.length > 0 && (effMin > 0 || effMax < 1 || atrMin > 0 || atrMax < 100)) {
+      const regime = getRegime(candles, bestSnap.timestamp, effLookback);
+      if (regime) {
+        if (regime.efficiency < effMin || regime.efficiency > effMax) {
+          skipped.push({ ...skipBase, edge: liveEdge, reason: `efficiency ${(regime.efficiency*100).toFixed(1)}% outside ${(effMin*100).toFixed(0)}-${(effMax*100).toFixed(0)}%` });
+          continue;
+        }
+        if (regime.atrPct < atrMin || regime.atrPct > atrMax) {
+          skipped.push({ ...skipBase, edge: liveEdge, reason: `ATR ${regime.atrPct.toFixed(3)}% outside ${atrMin}-${atrMax}%` });
+          continue;
         }
       }
+    }
 
-      const won = direction === outcome;
-      const pnl = won
-        ? betAmount * ((1 - entryPrice) / entryPrice)
-        : -betAmount;
+    const pdfAtRef = cdfPrices.length >= 2
+      ? pdfAtPrice(cdfPrices, cdfValues, referencePrice)
+      : 0;
 
-      bankroll += pnl;
-      if (bankroll < 0) bankroll = 0;
+    // Kelly: pass P(UP) derived from the side we're trading (matches bot)
+    const kellyProbUp = direction === "UP"
+      ? pick.entryProbe
+      : (1 - pick.entryProbe);
 
-      trades.push({
+    const kellyFraction = computeKelly(
+      synthProb,
+      kellyProbUp,
+      direction,
+      scenario,
+      coneWidthPct,
+      pdfAtRef,
+      p05,
+      p50,
+      p95,
+    );
+    if (kellyFraction <= 0) {
+      skipped.push({ ...skipBase, edge: liveEdge, reason: `kelly fraction <= 0 (${kellyFraction.toFixed(4)})` });
+      continue;
+    }
+
+    const sizingBankroll = fixedBankroll ? scenario.bankroll : bankroll;
+    const betAmount = scenario.fixedBetAmount
+      ? Math.min(scenario.fixedBetAmount, sizingBankroll)
+      : Math.min(kellyFraction * sizingBankroll, sizingBankroll * 0.5);
+    if (betAmount < 1) continue;
+
+    // Get real fill price with actual bet amount
+    const entryPrice = getEntryPrice(direction, market, bestSnap.timestamp, betAmount);
+    if (entryPrice === null || entryPrice <= 0 || entryPrice >= 1) {
+      skipped.push({ ...skipBase, edge: liveEdge, reason: `invalid entry price: ${entryPrice}` });
+      continue;
+    }
+
+    if (maxEntry < 1 && entryPrice > maxEntry) {
+      skipped.push({ ...skipBase, edge: liveEdge, reason: `entry ${entryPrice.toFixed(2)} > max ${maxEntry.toFixed(2)}` });
+      continue;
+    }
+
+    // Spread check (matches bot)
+    const spread = Math.max(0.01, entryPrice - (pick.entryProbe * 0.98)); // approximate spread from fill vs probe
+    const netEdge = liveEdge - 0.01; // 1 tick spread approximation
+    if (netEdge <= 0) {
+      skipped.push({ ...skipBase, edge: liveEdge, reason: `edge doesn't cover spread` });
+      continue;
+    }
+
+    let outcome: "UP" | "DOWN";
+    if (market?.outcome) {
+      outcome = market.outcome;
+    } else {
+      const eventEndTs = new Date(ud.eventEndTime).getTime() / 1000;
+      const laterSnap = snapshots.find(s => s.timestamp > eventEndTs);
+      if (laterSnap) {
+        outcome = laterSnap.currentPrice > ud.startPrice ? "UP" : "DOWN";
+      } else {
+        outcome = snapshots[snapshots.length - 1].currentPrice > ud.startPrice ? "UP" : "DOWN";
+      }
+    }
+
+    const won = direction === outcome;
+    const pnl = won
+      ? betAmount * ((1 - entryPrice) / entryPrice)
+      : -betAmount;
+
+    bankroll += pnl;
+    if (bankroll < 0) bankroll = 0;
+
+    trades.push({
       timestamp: bestSnap.timestamp,
       datetime: bestSnap.datetime,
-      direction, synthProb, polymarketProb: polyProb,
-      edge, entryPrice, betAmount, kellyFraction,
+      direction, synthProb, polymarketProb: ud.polymarketProbUp,
+      edge: liveEdge, entryPrice, betAmount, kellyFraction,
       outcome, pnl, bankrollAfter: bankroll, slug: ud.slug,
     });
 
-      equityCurve.push({ timestamp: bestSnap.timestamp, bankroll });
-    }
+    equityCurve.push({ timestamp: bestSnap.timestamp, bankroll });
   }
 
   const resolved = trades.filter(t => t.outcome !== "UNRESOLVED");
@@ -648,14 +848,37 @@ async function main() {
     .option("--synth-dir <dir>", "Synth snapshots directory", "data/synth-snapshots")
     .option("--polymarket-dir <dir>", "Polymarket data directory", "data/polymarket")
     .option("--output-dir <dir>", "Output directory", "data/results")
+    .option("--no-conviction", "Disable conviction filter")
+    .option("--min-conviction <pct>", "Minimum conviction threshold (0-1)", "0.5")
+    .option("--fixed-bankroll", "Don't compound — always size against initial bankroll")
+    .option("--confirm <n>", "Require N consecutive snapshots confirming signal before trading", "1")
+    .option("--min-cone <pct>", "Minimum cone width % to trade (skip low-vol)", "0")
+    .option("--max-entry <price>", "Maximum entry price (skip expensive entries)", "1")
+    .option("--start <time>", "Start time ISO8601 (filter snapshots)")
+    .option("--end <time>", "End time ISO8601 (filter snapshots)")
+    .option("--asset <name>", "Filter by asset (btc, eth, sol)")
+    .option("--candles-dir <dir>", "Candlestick data directory", "data/candlesticks")
+    .option("--eff-min <n>", "Min efficiency ratio to trade (0-1)", "0")
+    .option("--eff-max <n>", "Max efficiency ratio to trade (0-1)", "1")
+    .option("--eff-lookback <n>", "Efficiency lookback in minutes", "15")
+    .option("--atr-min <n>", "Min ATR % to trade", "0")
+    .option("--atr-max <n>", "Max ATR % to trade", "100")
     .parse();
 
   const opts = program.opts();
   await mkdir(opts.outputDir, { recursive: true });
 
   console.log("Loading data...");
-  const snapshots = await loadSynthSnapshots(opts.synthDir);
-  console.log(`  Synth: ${snapshots.length} snapshots`);
+  let snapshots = await loadSynthSnapshots(opts.synthDir, opts.asset);
+  if (opts.start) {
+    const startTs = Math.floor(new Date(opts.start).getTime() / 1000);
+    snapshots = snapshots.filter(s => s.timestamp >= startTs);
+  }
+  if (opts.end) {
+    const endTs = Math.floor(new Date(opts.end).getTime() / 1000);
+    snapshots = snapshots.filter(s => s.timestamp <= endTs);
+  }
+  console.log(`  Synth: ${snapshots.length} snapshots${opts.asset ? ` (${opts.asset.toUpperCase()})` : ""}${opts.start || opts.end ? ` (filtered)` : ""}`);
 
   if (snapshots.length < 2) {
     console.error("Need more Synth snapshots. Let the collector run longer.");
@@ -669,11 +892,16 @@ async function main() {
   const lastTs = snapshots[snapshots.length - 1].timestamp;
   console.log(`  Time span: ${((lastTs - firstTs) / 60).toFixed(0)} minutes`);
 
+  const candleData = await loadCandles(opts.candlesDir, opts.asset);
+  if (candleData.length > 0) {
+    console.log(`  Candles: ${candleData.length} (${opts.asset?.toUpperCase() || "all"})`);
+  }
+
   console.log("\nRunning 5 scenarios...\n");
   const results: ScenarioResult[] = [];
 
   for (const scenario of SCENARIOS) {
-    const result = runScenario(scenario, snapshots, markets);
+    const result = runScenario(scenario, snapshots, markets, opts.conviction, opts.fixedBankroll, Number(opts.confirm), Number(opts.minConviction), Number(opts.minCone), Number(opts.maxEntry), candleData, Number(opts.effMin), Number(opts.effMax), Number(opts.effLookback), Number(opts.atrMin), Number(opts.atrMax));
     results.push(result);
 
     const icon = result.totalPnl >= 0 ? "+" : "";

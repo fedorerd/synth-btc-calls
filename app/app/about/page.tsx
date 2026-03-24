@@ -206,10 +206,42 @@ export default function AboutPage() {
           </p>
         </Section>
 
+        <Section title="Trade Filters">
+          <p className="font-medium text-foreground">Conviction Filter</p>
+          <p>
+            Only bet a direction when Synth&apos;s probability for that side exceeds 50%.
+            Prevents betting against Synth&apos;s own directional view even when mathematical edge exists.
+            Backtested: raises hit rate from 59% to 62% and profit factor from 1.25 to 1.56.
+          </p>
+
+          <p className="font-medium text-foreground">Dual-Side Evaluation</p>
+          <p>
+            Both UP and DOWN sides are evaluated independently against live orderbook prices.
+            The side with better edge that passes conviction is selected. This catches DOWN opportunities
+            that a single-direction check would miss.
+          </p>
+
+          <p className="font-medium text-foreground">Regime Filter: Efficiency Ratio</p>
+          <p>
+            Uses 1-minute Chainlink OHLC candles to compute a price efficiency ratio over the
+            last 15 minutes:
+          </p>
+          <Formula label="Efficiency" formula="|close_last - open_first| / Σ|close_i - open_i|" />
+          <p>
+            Range: 0 (pure chop) to 1 (straight line). We only trade when efficiency &lt; 20% &mdash;
+            when price hasn&apos;t committed to a direction yet. The mid-range (20-50%) is where Synth
+            gets faked out by indecisive moves. High efficiency (&gt;50%) is also viable but rare.
+          </p>
+          <p className="text-xs">
+            Backtested impact: turns a -$180 losing period into +$424 profit (PF 3.11, 10% max drawdown).
+          </p>
+        </Section>
+
         <Section title="Backtesting Methodology">
           <p>
-            We validate the strategy using real data: Synth insight snapshots collected every minute,
-            matched against Polymarket market outcomes with real orderbook entry prices from Predexon.
+            Validated over 48 hours of real data (March 14-17, 2026): Synth insight snapshots collected
+            every minute, matched against resolved Polymarket outcomes with real orderbook entry prices
+            from Predexon. Candle data from Chainlink Data Streams for regime detection.
           </p>
 
           <p className="font-medium text-foreground">5 Agent Scenarios</p>
@@ -245,9 +277,9 @@ export default function AboutPage() {
           </div>
 
           <p>
-            Each agent bets every ~5 minutes at randomized timestamps (seeded per agent for reproducibility).
-            Entry prices use real orderbook ask prices from Predexon snapshots matched by closest timestamp.
-            Trades without orderbook data are skipped entirely &mdash; no fallback to estimated prices.
+            Each agent checks every minute (matching the live bot), evaluating both UP and DOWN
+            sides against real orderbook asks. Entry prices use actual Predexon orderbook depth
+            with slippage-aware book walking. Only resolved markets with confirmed outcomes are used.
           </p>
         </Section>
 

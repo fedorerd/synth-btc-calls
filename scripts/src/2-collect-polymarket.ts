@@ -92,6 +92,8 @@ async function fetchMarkets(
   apiKey: string,
   timeframe: Timeframe,
   startDate?: string,
+  endDate?: string,
+  asset: string = "btc",
 ): Promise<PredexonMarket[]> {
   const allMarkets: PredexonMarket[] = [];
   let offset = 0;
@@ -102,12 +104,12 @@ async function fetchMarkets(
     return Math.floor(new Date(`${d}T00:00:00Z`).getTime() / 1000);
   };
   const endAfter = startDate ? toUnix(startDate) : undefined;
-  const endBefore = nextResolutionBoundary(timeframe);
+  const endBefore = endDate ? toUnix(endDate) : nextResolutionBoundary(timeframe);
 
   console.log(`  end_after=${endAfter} end_before=${endBefore} (${new Date(endBefore * 1000).toISOString()})`);
 
   while (true) {
-    let url = `${API_BASE}/v2/polymarket/crypto-updown?asset=btc&timeframe=${timeframe}&sort=asc&limit=${limit}&offset=${offset}`;
+    let url = `${API_BASE}/v2/polymarket/crypto-updown?asset=${asset}&timeframe=${timeframe}&sort=asc&limit=${limit}&offset=${offset}`;
     if (endAfter) url += `&end_after=${endAfter}`;
     if (endBefore) url += `&end_before=${endBefore}`;
     const res = await fetch(url, { headers: { "x-api-key": apiKey } });
@@ -133,7 +135,28 @@ async function fetchOrderbooks(
   tokenId: string,
   startTimeMs: number,
   endTimeMs: number,
+  minuteOnly: boolean = false,
 ): Promise<OrderbookSnapshot[]> {
+  // If minuteOnly, fetch one snapshot per minute instead of all snapshots
+  if (minuteOnly) {
+    const all: OrderbookSnapshot[] = [];
+    const intervalMs = 60_000;
+    for (let t = startTimeMs; t < endTimeMs; t += intervalMs) {
+      // Fetch a 2-second window around each minute mark
+      const windowStart = t;
+      const windowEnd = t + 2000;
+      const url = `${API_BASE}/v2/polymarket/orderbooks?token_id=${tokenId}&start_time=${windowStart}&end_time=${windowEnd}&limit=1`;
+      try {
+        const res = await fetch(url, { headers: { "x-api-key": apiKey } });
+        if (!res.ok) continue;
+        const data = await res.json();
+        const snapshots: OrderbookSnapshot[] = data.snapshots ?? [];
+        if (snapshots.length > 0) all.push(snapshots[0]);
+      } catch {}
+    }
+    return all;
+  }
+
   const all: OrderbookSnapshot[] = [];
   let paginationKey: string | null = null;
 
@@ -236,7 +259,10 @@ async function main() {
     .option("--api-key <key>", "Predexon API key (or set PREDEXON_API_KEY env var)", process.env.PREDEXON_API_KEY)
     .option("--start-date <date>", "Start date YYYY-MM-DD or ISO8601", "2026-03-14T23:00:00Z")
     .option("--output-dir <dir>", "Output directory", "data/polymarket")
+    .option("--end-date <date>", "End date YYYY-MM-DD or ISO8601 (default: next resolution boundary)")
+    .option("--asset <asset>", "Asset to collect (btc, eth, sol)", "btc")
     .option("--timeframes <types>", "Comma-separated timeframes", "15m,1h,daily")
+    .option("--minute-only", "Fetch one orderbook snapshot per minute instead of all")
     .parse();
 
   const opts = program.opts();
@@ -245,8 +271,8 @@ async function main() {
 
   const timeframes = opts.timeframes.split(",") as Timeframe[];
 
-  console.log("Collecting Polymarket data via Predexon");
-  console.log(`  Start: ${opts.startDate}`);
+  console.log(`Collecting Polymarket data via Predexon (${opts.asset.toUpperCase()})`);
+  console.log(`  Start: ${opts.startDate}${opts.endDate ? ` → End: ${opts.endDate}` : ""}`);
   console.log(`  Timeframes: ${timeframes.join(", ")}`);
   console.log(`  Orderbooks: enabled`);
 
@@ -255,7 +281,7 @@ async function main() {
   for (const tf of timeframes) {
     console.log(`\n--- ${tf} markets ---`);
 
-    const markets = await fetchWithRetry(() => fetchMarkets(opts.apiKey, tf, opts.startDate));
+    const markets = await fetchWithRetry(() => fetchMarkets(opts.apiKey, tf, opts.startDate, opts.endDate, opts.asset));
     const resolved = markets.filter(m => m.winning_side);
     console.log(`  Total: ${markets.length} (${resolved.length} resolved, ${markets.length - resolved.length} open)`);
 
@@ -275,8 +301,8 @@ async function main() {
 
           process.stdout.write(`    ${market.market_slug} orderbooks...`);
           [upBooks, downBooks] = await Promise.all([
-            fetchWithRetry(() => fetchOrderbooks(opts.apiKey, market.up_token_id, startMs, endMs)),
-            fetchWithRetry(() => fetchOrderbooks(opts.apiKey, market.down_token_id, startMs, endMs)),
+            fetchWithRetry(() => fetchOrderbooks(opts.apiKey, market.up_token_id, startMs, endMs, opts.minuteOnly)),
+            fetchWithRetry(() => fetchOrderbooks(opts.apiKey, market.down_token_id, startMs, endMs, opts.minuteOnly)),
           ]);
           process.stdout.write(` ${upBooks.length} up + ${downBooks.length} down\n`);
         }
